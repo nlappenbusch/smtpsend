@@ -20,7 +20,7 @@
                 <div>
                     <h1>CRM & Email Marketing</h1>
                     <p class="subtitle">Kontaktverwaltung und professioneller Email-Versand <span
-                            class="version-tag">v1.2.1</span></p>
+                            class="version-tag">v1.2.2</span></p>
                 </div>
             </div>
         </header>
@@ -108,15 +108,39 @@
                             <div id="editor"></div>
                         </div>
                         <div class="form-group">
-                            <label>📧 EML-Datei importieren</label>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <button class="btn-secondary" id="emlUploadBtn" type="button">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                    </svg>
-                                    EML-Datei hochladen
-                                </button>
+                            <label>📧 EML-Datei importieren / Beispiel laden</label>
+                            <div style="display: flex; gap: 10px; align-items: flex-start; flex-direction: column;">
+                                <div style="display: flex; gap: 10px; align-items: center; width: 100%;">
+                                    <button class="btn-secondary" id="emlUploadBtn" type="button"
+                                        style="flex-shrink: 0;">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                            style="width:16px;height:16px;">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                        </svg>
+                                        EML-Datei hochladen
+                                    </button>
+                                    <button class="btn-secondary" id="loadExamplesBtn" type="button">
+                                        <i class="fas fa-folder-open"></i> Beispiel laden
+                                    </button>
+                                </div>
+
+                                <div id="exampleEmlContainer" class="hidden"
+                                    style="width: 100%; margin-top: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                    <label
+                                        style="font-size: 0.85em; color: #64748b; margin-bottom: 8px; display: block;">Verfügbare
+                                        EML-Dateien:</label>
+                                    <div style="display: flex; gap: 8px;">
+                                        <select id="exampleEmlSelect" class="form-input" style="flex: 1;">
+                                            <option value="">-- Beispiel wählen --</option>
+                                        </select>
+                                        <button class="btn-primary" id="confirmLoadExampleBtn" disabled
+                                            style="padding: 0 16px;">
+                                            Laden
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <input type="file" id="emlFile" accept=".eml" hidden>
                                 <small class="form-hint">Lädt Betreff, Inhalt und Bilder aus einer EML-Datei</small>
                             </div>
@@ -137,17 +161,6 @@
                                 <input type="file" id="attachmentFile" multiple hidden>
                                 <div id="attachmentList" style="display: none; width: 100%;"></div>
                             </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Code-Ansicht</label>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                            </svg>
-                            EML-Datei hochladen
-                            </button>
-                            <input type="file" id="emlFile" accept=".eml" hidden>
-                            <small class="form-hint">Lädt Betreff, Inhalt und Bilder aus einer EML-Datei</small>
                         </div>
                     </div>
 

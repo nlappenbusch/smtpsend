@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeEditor();
     initializeEventListeners();
     initializeCRM();
+    loadExampleEmlList(); // Load available EML examples
 });
 
 function initializeEditor() {
@@ -98,6 +99,18 @@ function initializeEventListeners() {
             handleEMLFile(file);
         }
     });
+
+    // EML Examples
+    document.getElementById('loadExamplesBtn').addEventListener('click', () => {
+        const container = document.getElementById('exampleEmlContainer');
+        container.classList.toggle('hidden');
+    });
+
+    document.getElementById('exampleEmlSelect').addEventListener('change', (e) => {
+        document.getElementById('confirmLoadExampleBtn').disabled = !e.target.value;
+    });
+
+    document.getElementById('confirmLoadExampleBtn').addEventListener('click', handleLoadExample);
 
     // Attachment Upload
     const attachmentBtn = document.getElementById('attachmentBtn');
@@ -773,6 +786,74 @@ async function sendTestEmail() {
         }, 2000);
 
         alert('Fehler beim Senden der Test-Email. Siehe Log für Details.');
+    }
+}
+
+async function loadExampleEmlList() {
+    try {
+        const response = await fetch('/api/example-emls');
+        const data = await response.json();
+
+        if (data.success && data.files) {
+            const select = document.getElementById('exampleEmlSelect');
+            // Keep the first option
+            select.innerHTML = '<option value="">-- Beispiel wählen --</option>';
+
+            data.files.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file.name;
+                option.textContent = `${file.name} (${formatFileSize(file.size)})`;
+                select.appendChild(option);
+            });
+            console.log(`📂 Found ${data.files.length} example EML files`);
+        }
+    } catch (error) {
+        console.error('Error loading example EML list:', error);
+    }
+}
+
+async function handleLoadExample() {
+    const filename = document.getElementById('exampleEmlSelect').value;
+    if (!filename) return;
+
+    const btn = document.getElementById('confirmLoadExampleBtn');
+    const originalText = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Lädt...';
+
+    addLog('info', `📧 Lade Beispiel-EML: ${filename}...`);
+
+    try {
+        const response = await fetch(`/api/load-example/${encodeURIComponent(filename)}`);
+        const data = await response.json();
+
+        if (data.success) {
+            // Update Subject
+            document.getElementById('emailSubject').value = data.subject || '';
+
+            // Update Quill Content
+            const delta = quillEditor.clipboard.convert(data.html);
+            quillEditor.setContents(delta, 'silent');
+
+            // Handle images if any (they are already cleaned and base64 in data.html)
+            // But we might want to log it
+            if (data.images && data.images.length > 0) {
+                addLog('info', `📸 ${data.images.length} Bilder aus Beispiel geladen`);
+            }
+
+            addLog('success', `✅ Beispiel "${filename}" erfolgreich geladen`);
+            document.getElementById('exampleEmlContainer').classList.add('hidden');
+            updateSendButton();
+        } else {
+            throw new Error(data.error || 'Unbekannter Fehler');
+        }
+    } catch (error) {
+        addLog('error', `❌ Fehler beim Laden des Beispiels: ${error.message}`);
+        alert('Fehler beim Laden: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     }
 }
 

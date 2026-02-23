@@ -1,6 +1,6 @@
 {
   "name": "smtp-mass-sender",
-  "version": "1.0.0",
+  "version": "1.2.2",
   "description": "Mass email sender with WYSIWYG editor",
   "main": "server.js",
   "scripts": {

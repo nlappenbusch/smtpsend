@@ -81,11 +81,12 @@ function cleanHtmlForQuill(html) {
         html = bodyMatch[1];
     }
 
-    // Clean up Word artifacts and attributes
+    // Clean up Word artifacts (but keep base style/class for now, we filter tags later)
     html = html.replace(/mso-[a-z\-]+:[^;"']+;?/gi, '');
     html = html.replace(/class="Mso[^"]*"/gi, '');
-    html = html.replace(/\sstyle="[^"]*"/gi, '');
-    html = html.replace(/\sclass="[^"]*"/gi, '');
+
+    // Note: We NO LONGER strip all style/class globally here, 
+    // because that kills image dimensions (width/height in styles).
 
     // NEUE STRATEGIE: Extrahiere Paragraphen, dann baue Text neu auf
     // Zuerst alle <p> Tags mit ihrem Inhalt sammeln
@@ -96,7 +97,9 @@ function cleanHtmlForQuill(html) {
     while ((match = pRegex.exec(html)) !== null) {
         let content = match[1];
         // Entferne alle HTML-Tags aus dem Inhalt (außer img, a und BR!)
+        // Aber bewahre die Attribute dieser Tags!
         content = content.replace(/<(?!img|a|\/a|br)([^>]+)>/gi, '');
+
         // Normalize BRs innerhalb des Paragraphen
         content = content.replace(/<br\s*\/?>/gi, '<br>');
         // Normalize whitespace (aber nicht um BRs herum)
@@ -113,6 +116,9 @@ function cleanHtmlForQuill(html) {
 
     // Wenn keine Paragraphen gefunden, Fallback zu altem Ansatz
     if (paragraphs.length === 0) {
+        // Final cleaning of remaining tags except specific list
+        html = html.replace(/<(?!img|a|\/a|br)([^>]+)>/gi, '');
+
         html = html.replace(/\s+/g, ' ');
         html = html.replace(/&nbsp;/g, ' ');
         html = html.replace(/>\s+</g, '><');
@@ -137,7 +143,7 @@ function cleanHtmlForQuill(html) {
     // Wrap in single div with normal line-height
     html = '<div style="margin:0;padding:0;line-height:1.4">' + html + '</div>';
 
-    console.log('🚀🚀🚀 V13 REVOLUTION - NUR <br> TAGS! - ZEILEN:', paragraphs.length, 'LÄNGE:', html.length);
+    console.log('🚀🚀🚀 HTML CLEANING COMPLETED - ZEILEN:', paragraphs.length, 'LÄNGE:', html.length);
 
     return html.trim();
 }
@@ -651,6 +657,74 @@ app.post('/api/send-email', async (req, res) => {
     }
 });
 
+// EML examples endpoint
+app.get('/api/example-emls', (req, res) => {
+    try {
+        const files = fs.readdirSync(__dirname)
+            .filter(f => f.endsWith('.eml'))
+            .map(f => ({
+                name: f,
+                size: fs.statSync(path.join(__dirname, f)).size
+            }));
+        res.json({ success: true, files });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Load specific example endpoint
+app.get('/api/load-example/:filename', async (req, res) => {
+    try {
+        const filename = req.params.filename;
+        const filePath = path.join(__dirname, filename);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ success: false, error: 'Example file not found' });
+        }
+
+        console.log(`📧 Loading example EML: ${filename}`);
+        const buffer = fs.readFileSync(filePath);
+        const parsed = await simpleParser(buffer);
+
+        // Extract subject
+        const subject = parsed.subject || '';
+
+        // Extract HTML content
+        let html = '';
+        if (parsed.html) {
+            html = typeof parsed.html === 'string' ? parsed.html : parsed.html.toString();
+        } else if (parsed.textAsHtml) {
+            html = parsed.textAsHtml;
+        } else if (parsed.text) {
+            html = `<div>${parsed.text.replace(/\n/g, '<br>')}</div>`;
+        }
+
+        // Clean HTML
+        html = cleanHtmlForQuill(html);
+
+        // Extract images
+        const images = [];
+        if (parsed.attachments && parsed.attachments.length > 0) {
+            for (const attachment of parsed.attachments) {
+                if (attachment.contentDisposition === 'inline' || attachment.cid) {
+                    const base64Data = `data:${attachment.contentType};base64,${attachment.content.toString('base64')}`;
+                    images.push({
+                        cid: attachment.cid || attachment.contentId || attachment.filename,
+                        filename: attachment.filename,
+                        contentType: attachment.contentType,
+                        data: base64Data
+                    });
+                }
+            }
+        }
+
+        res.json({ success: true, subject, html, images });
+    } catch (error) {
+        console.error('✗ Error loading example EML:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // Test endpoint
 app.get('/api/test', (req, res) => {
     res.json({
@@ -820,7 +894,7 @@ app.listen(PORT, () => {
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   📧  Email Massenversand Server                         ║
-║   Version: 1.2.1                                          ║
+║   Version: 1.2.2                                          ║
 ║                                                           ║
 ║   Server läuft auf: http://localhost:${PORT}                ║
 ║                                                           ║
