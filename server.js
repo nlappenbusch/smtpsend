@@ -587,6 +587,8 @@ app.post('/api/send-email', async (req, res) => {
         console.log(`  → Converted ${attachments.length} images to CID attachments`);
 
         // Create transporter with SMTP config
+        console.log(`📡 Connecting to SMTP: ${SMTP_CONFIG.host}:${SMTP_CONFIG.port} (User: ${SMTP_CONFIG.auth.user})`);
+
         const transporter = nodemailer.createTransport({
             host: SMTP_CONFIG.host,
             port: SMTP_CONFIG.port,
@@ -597,11 +599,17 @@ app.post('/api/send-email', async (req, res) => {
             },
             tls: {
                 rejectUnauthorized: false
-            }
+            },
+            // timeouts to avoid indefinite hangs
+            connectionTimeout: 10000, // 10s
+            greetingTimeout: 10000,    // 10s
+            socketTimeout: 15000       // 15s
         });
 
         // Verify connection
+        console.log(`🔍 Verifying SMTP connection...`);
         await transporter.verify();
+        console.log(`✅ SMTP connection verified!`);
 
         // Combine CID attachments from images with user attachments
         const allAttachments = [
