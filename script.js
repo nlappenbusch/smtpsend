@@ -1339,43 +1339,66 @@ async function importBrevoContacts() {
 
     try {
         addLog('info', `📥 Importiere Kontakte aus "${selectedBrevoList.name}"...`);
-        document.getElementById('importBrevoListBtn').disabled = true;
-        document.getElementById('importBrevoListBtn').textContent = 'Wird geladen...';
+        const importBtn = document.getElementById('importBrevoListBtn');
+        importBtn.disabled = true;
 
-        const response = await fetch(`/api/brevo/lists/${selectedBrevoList.id}/contacts`);
-        const data = await response.json();
+        let allNewContacts = [];
+        let offset = 0;
+        const limit = 500;
+        let hasMore = true;
+        let totalCount = 0;
 
-        if (!data.success) {
-            throw new Error(data.error || 'Fehler beim Laden der Kontakte');
+        while (hasMore) {
+            importBtn.textContent = totalCount > 0
+                ? `Lädt: ${allNewContacts.length} / ${totalCount}...`
+                : 'Wird geladen...';
+
+            const response = await fetch(`/api/brevo/lists/${selectedBrevoList.id}/contacts?limit=${limit}&offset=${offset}`);
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || 'Fehler beim Laden der Kontakte');
+            }
+
+            totalCount = data.total;
+            const pageContacts = data.contacts || [];
+
+            // Filter duplicates against existing recipients
+            const filteredPage = pageContacts.filter(contact => {
+                return !recipients.some(r => r.email.toLowerCase() === contact.email.toLowerCase()) &&
+                    !allNewContacts.some(c => c.email.toLowerCase() === contact.email.toLowerCase());
+            });
+
+            allNewContacts = [...allNewContacts, ...filteredPage];
+
+            hasMore = data.hasMore;
+            offset += limit;
         }
 
         // Add contacts to recipients array
-        const newContacts = data.contacts.filter(contact => {
-            // Check for duplicates
-            return !recipients.some(r => r.email.toLowerCase() === contact.email.toLowerCase());
-        });
-
-        recipients = [...recipients, ...newContacts];
+        recipients = [...recipients, ...allNewContacts];
 
         updateRecipientInfo();
         updateSendButton();
 
-        addLog('success', `✅ ${newContacts.length} Kontakte aus "${selectedBrevoList.name}" importiert`);
-        if (data.contacts.length > newContacts.length) {
-            addLog('info', `ℹ ${data.contacts.length - newContacts.length} Duplikate übersprungen`);
+        addLog('success', `✅ ${allNewContacts.length} Kontakte aus "${selectedBrevoList.name}" importiert`);
+        const duplicates = totalCount - allNewContacts.length;
+        if (duplicates > 0) {
+            addLog('info', `ℹ ${duplicates} bereits vorhandene Kontakte übersprungen`);
         }
 
         // Reset UI
-        document.getElementById('importBrevoListBtn').disabled = false;
-        document.getElementById('importBrevoListBtn').textContent = 'Kontakte importieren';
+        importBtn.disabled = false;
+        importBtn.textContent = 'Kontakte importieren';
 
     } catch (error) {
         console.error('Error importing Brevo contacts:', error);
         addLog('error', `✗ Fehler beim Importieren der Kontakte: ${error.message}`);
         alert('Fehler beim Importieren der Kontakte. Siehe Log für Details.');
 
-        document.getElementById('importBrevoListBtn').disabled = false;
-        document.getElementById('importBrevoListBtn').textContent = 'Kontakte importieren';
+        const importBtn = document.getElementById('importBrevoListBtn');
+        importBtn.disabled = false;
+        importBtn.textContent = 'Kontakte importieren';
     }
 }
 

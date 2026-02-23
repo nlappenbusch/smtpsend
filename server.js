@@ -432,41 +432,29 @@ app.get('/api/brevo/lists/:listId/count', async (req, res) => {
 app.get('/api/brevo/lists/:listId/contacts', async (req, res) => {
     try {
         const { listId } = req.params;
-        let allContacts = [];
-        let offset = 0;
-        const limit = 500;
-        let hasMore = true;
+        const limit = parseInt(req.query.limit) || 500;
+        const offset = parseInt(req.query.offset) || 0;
 
-        // Fetch all contacts (Brevo API is paginated)
-        while (hasMore) {
-            const response = await fetch(
-                `${BREVO_API_URL}/contacts/lists/${listId}/contacts?limit=${limit}&offset=${offset}`,
-                {
-                    method: 'GET',
-                    headers: {
-                        'accept': 'application/json',
-                        'api-key': BREVO_API_KEY
-                    }
+        const response = await fetch(
+            `${BREVO_API_URL}/contacts/lists/${listId}/contacts?limit=${limit}&offset=${offset}`,
+            {
+                method: 'GET',
+                headers: {
+                    'accept': 'application/json',
+                    'api-key': BREVO_API_KEY
                 }
-            );
-
-            if (!response.ok) {
-                throw new Error(`Brevo API error: ${response.status} ${response.statusText}`);
             }
+        );
 
-            const data = await response.json();
-            allContacts = allContacts.concat(data.contacts || []);
-
-            hasMore = data.contacts && data.contacts.length === limit;
-            offset += limit;
-
-            console.log(`  Fetched ${allContacts.length} contacts so far...`);
+        if (!response.ok) {
+            throw new Error(`Brevo API error: ${response.status} ${response.statusText}`);
         }
 
-        console.log(`✓ Fetched total ${allContacts.length} contacts from list ${listId}`);
+        const data = await response.json();
+        const contacts = data.contacts || [];
 
         // Format contacts for the frontend
-        const formattedContacts = allContacts.map(contact => ({
+        const formattedContacts = contacts.map(contact => ({
             email: contact.email,
             addedTime: contact.createdAt ? new Date(contact.createdAt).toLocaleDateString('de-DE') : '',
             modifiedTime: contact.modifiedAt ? new Date(contact.modifiedAt).toLocaleDateString('de-DE') : ''
@@ -475,7 +463,9 @@ app.get('/api/brevo/lists/:listId/contacts', async (req, res) => {
         res.json({
             success: true,
             contacts: formattedContacts,
-            total: formattedContacts.length
+            count: formattedContacts.length,
+            total: data.count || 0,
+            hasMore: contacts.length === limit
         });
 
     } catch (error) {
