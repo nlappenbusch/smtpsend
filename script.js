@@ -141,6 +141,24 @@ function initializeEventListeners() {
     // Enable send button when requirements are met
     document.getElementById('emailSubject').addEventListener('input', updateSendButton);
     quillEditor.on('text-change', updateSendButton);
+
+    // Logout
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            if (confirm('Möchten Sie sich wirklich abmelden?')) {
+                try {
+                    const response = await fetch('/api/logout', { method: 'POST' });
+                    if (response.ok) {
+                        window.location.href = '/login';
+                    }
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    window.location.href = '/login';
+                }
+            }
+        });
+    }
 }
 
 function handleCSVFile(file) {

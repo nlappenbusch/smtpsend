@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { simpleParser } = require('mailparser');
+const session = require('express-session');
 
 const app = express();
 const PORT = 3000;
@@ -166,6 +167,72 @@ const BREVO_API_URL = 'https://api.brevo.com/v3';
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Session configuration
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'faltin-travel-secret-8105',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: false, // Set to true if using HTTPS
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+}));
+
+// Authentication Middleware
+const APP_PASSWORD = process.env.APP_PASSWORD || 'Regensdorf?8105!';
+
+function requireAuth(req, res, next) {
+    if (req.session && req.session.isAuthenticated) {
+        return next();
+    }
+
+    // Check if it's an API request
+    if (req.path.startsWith('/api/')) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // Otherwise redirect to login
+    res.redirect('/login');
+}
+
+// Public Routes
+app.get('/login', (req, res) => {
+    if (req.session && req.session.isAuthenticated) {
+        return res.redirect('/');
+    }
+    res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+app.post('/api/login', (req, res) => {
+    const { password } = req.body;
+
+    if (password === APP_PASSWORD) {
+        req.session.isAuthenticated = true;
+        console.log('🔓 Successful login attempt');
+        res.json({ success: true });
+    } else {
+        console.log('🔒 Failed login attempt');
+        res.status(401).json({ success: false, error: 'Invalid password' });
+    }
+});
+
+app.post('/api/logout', (req, res) => {
+    req.session.destroy();
+    res.json({ success: true });
+});
+
+// Protected routes (must be after public routes)
+app.use('/api', requireAuth);
+
+// Static files (protected except logos and assets needed for login)
+app.get('/faltin-logo.svg', (req, res) => res.sendFile(path.join(__dirname, 'faltin-logo.svg')));
+
+// Explicitly protect index.html
+app.get('/', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 app.use(express.static(__dirname));
 
 // Helper function to extract base64 images from HTML and convert to CID attachments
@@ -894,7 +961,7 @@ app.listen(PORT, () => {
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   📧  Email Massenversand Server                         ║
-║   Version: 1.2.2                                          ║
+║   Version: 1.2.3                                          ║
 ║                                                           ║
 ║   Server läuft auf: http://localhost:${PORT}                ║
 ║                                                           ║
