@@ -10,4 +10,4 @@ jobs:
 
     steps:
       - name: Deploy to Docker Server
-        run: /opt/smtpsend/deploy.sh
+        run: bash /opt/smtpsend/deploy.sh
