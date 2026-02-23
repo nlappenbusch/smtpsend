@@ -1,0 +1,13 @@
+name: Deploy SmtpSend
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Linux, X64, docker-mailing-01]
+
+    steps:
+      - name: Deploy to Docker Server
+        run: /opt/smtpsend/deploy.sh

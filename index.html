@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faltin Travel CRM - Kontakte & Email-Versand</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Quill WYSIWYG Editor -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <img src="faltin-logo.svg" alt="Faltin Travel Logo" class="header-logo faltin-logo">
+                <div>
+                    <h1>CRM & Email Marketing</h1>
+                    <p class="subtitle">Kontaktverwaltung und professioneller Email-Versand</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="emails">
+                <i class="fas fa-envelope"></i> Email-Versand
+            </button>
+            <button class="tab-btn" data-tab="contacts">
+                <i class="fas fa-users"></i> Kontakte
+            </button>
+            <button class="tab-btn" data-tab="lists">
+                <i class="fas fa-list"></i> Listen
+            </button>
+        </nav>
+
+        <main class="main-content">
+            <!-- EMAIL TAB -->
+            <div class="tab-content active" id="emails-tab">
+                <!-- CSV Upload Section -->
+                <section class="card">
+                    <div class="card-header">
+                        <h2>📁 Empfänger-Liste</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label>📋 Brevo-Listen importieren</label>
+                            <div style="display: flex; gap: 10px; align-items: flex-start; flex-direction: column;">
+                                <button class="btn-secondary" id="loadBrevoListsBtn" type="button">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        style="width:16px;height:16px;">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12" />
+                                    </svg>
+                                    Brevo-Listen laden
+                                </button>
+                                <div id="brevoListsContainer" class="hidden" style="width: 100%;">
+                                    <select id="brevoListSelect" class="form-input" style="margin-bottom: 10px;">
+                                        <option value="">-- Wählen Sie eine Liste --</option>
+                                    </select>
+                                    <button class="btn-primary" id="importBrevoListBtn" disabled>
+                                        Kontakte importieren
+                                    </button>
+                                    <div id="brevoListInfo" style="margin-top: 10px; color: #888; font-size: 0.9em;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="text-align: center; margin: 20px 0; color: #555;">── ODER ──</div>
+
+                        <div class="upload-zone" id="uploadZone">
+                            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p class="upload-text">CSV-Datei hier ablegen oder klicken zum Auswählen</p>
+                            <input type="file" id="csvFile" accept=".csv" hidden>
+                        </div>
+                        <div id="recipientInfo" class="recipient-info hidden">
+                            <div class="info-badge">
+                                <span class="badge-label">Empfänger geladen:</span>
+                                <span class="badge-value" id="recipientCount">0</span>
+                            </div>
+                            <button class="btn-secondary" id="viewRecipients">Empfänger anzeigen</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Email Composer Section -->
+                <section class="card">
+                    <div class="card-header">
+                        <h2>✉️ Email erstellen</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="emailSubject">Betreff</label>
+                            <input type="text" id="emailSubject" class="form-input"
+                                placeholder="Email-Betreff eingeben...">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Email-Inhalt (HTML)</label>
+                            <div id="editor"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>📧 EML-Datei importieren</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <button class="btn-secondary" id="emlUploadBtn" type="button">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                    </svg>
+                                    EML-Datei hochladen
+                                </button>
+                                <input type="file" id="emlFile" accept=".eml" hidden>
+                                <small class="form-hint">Lädt Betreff, Inhalt und Bilder aus einer EML-Datei</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>📎 Anhänge hinzufügen</label>
+                            <div
+                                style="display: flex; gap: 10px; align-items: center; flex-direction: column; align-items: flex-start;">
+                                <button class="btn-secondary" id="attachmentBtn" type="button">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        style="width:16px;height:16px;">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                    </svg>
+                                    Dateien anhängen
+                                </button>
+                                <input type="file" id="attachmentFile" multiple hidden>
+                                <div id="attachmentList" style="display: none; width: 100%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Code-Ansicht</label>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            EML-Datei hochladen
+                            </button>
+                            <input type="file" id="emlFile" accept=".eml" hidden>
+                            <small class="form-hint">Lädt Betreff, Inhalt und Bilder aus einer EML-Datei</small>
+                        </div>
+                    </div>
+
+                    <div class="editor-actions">
+                        <button class="btn-secondary" id="previewBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            Vorschau
+                        </button>
+                        <button class="btn-secondary" id="viewHtmlBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                            </svg>
+                            HTML-Code
+                        </button>
+                        <button class="btn-secondary" id="testEmailBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Test-Email senden
+                        </button>
+                    </div>
+            </div>
+            </section>
+
+            <!-- Send Section -->
+            <section class="card">
+                <div class="card-header">
+                    <h2>🚀 Versand</h2>
+                </div>
+                <div class="card-body">
+                    <div class="send-settings" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label for="delayInput">⏱️ Verzögerung pro Mail (Sekunden)</label>
+                            <input type="number" id="delayInput" class="form-input" value="1.5" min="0.5" max="60"
+                                step="0.5">
+                            <small class="form-hint">Zeit zwischen jeder einzelnen Mail</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="parallelSends">⚡ Parallele Mails</label>
+                            <input type="number" id="parallelSends" class="form-input" value="1" min="1" max="10">
+                            <small class="form-hint">1 = sicher, 3-5 = schneller aber riskanter</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="batchSize">📦 Batch-Größe</label>
+                            <input type="number" id="batchSize" class="form-input" value="50" min="10" max="500">
+                            <small class="form-hint">Emails pro Durchgang, danach Pause</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="batchPause">☕ Batch-Pause (Sekunden)</label>
+                            <input type="number" id="batchPause" class="form-input" value="15" min="5" max="120">
+                            <small class="form-hint">Pause zwischen den Batches</small>
+                        </div>
+                    </div>
+
+                    <!-- Estimated Duration -->
+                    <div id="estimatedDuration"
+                        style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); border-radius: 8px; padding: 12px 16px; margin: 12px 0; display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.3em;">📊</span>
+                        <div>
+                            <div style="font-weight: 600; color: #6366f1;">Geschätzte Versanddauer</div>
+                            <div id="durationEstimate" style="font-size: 0.95em; color: #888;">Empfänger laden, um Dauer
+                                zu berechnen...</div>
+                        </div>
+                    </div>
+
+                    <div class="send-actions">
+                        <button class="btn-primary" id="sendBtn" disabled>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                            Massenversand starten
+                        </button>
+                        <button class="btn-danger hidden" id="stopBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            Versand stoppen
+                        </button>
+                    </div>
+
+                    <!-- Progress Section -->
+                    <div id="progressSection" class="progress-section hidden">
+                        <div class="progress-header">
+                            <h3>Versandfortschritt</h3>
+                            <span id="progressText">0 / 0</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="progress-stats">
+                            <div class="stat">
+                                <span class="stat-label">Erfolgreich:</span>
+                                <span class="stat-value success" id="successCount">0</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Fehlgeschlagen:</span>
+                                <span class="stat-value error" id="errorCount">0</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Verbleibend:</span>
+                                <span class="stat-value" id="remainingCount">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Log Section -->
+                    <div id="logSection" class="log-section hidden">
+                        <div class="log-header">
+                            <h3>Versand-Log</h3>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button class="btn-text" id="downloadServerLog" title="Server-Log herunterladen">
+                                    <i class="fas fa-download"></i> Server-Log
+                                </button>
+                                <button class="btn-text" id="clearLog">Löschen</button>
+                            </div>
+                        </div>
+                        <div class="log-content" id="logContent"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Email-Vorschau</h2>
+                <button class="modal-close" id="closePreview">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="preview-subject">
+                    <strong>Betreff:</strong> <span id="previewSubject"></span>
+                </div>
+                <div class="preview-content" id="previewContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recipients Modal -->
+    <div id="recipientsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Empfänger-Liste</h2>
+                <button class="modal-close" id="closeRecipients">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="recipientsList" class="recipients-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Email Modal -->
+    <div id="testEmailModal" class="modal hidden">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>Test-Email senden</h2>
+                <button class="modal-close" id="closeTestEmail">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="testEmailAddress">Test-Email-Adresse</label>
+                    <input type="email" id="testEmailAddress" class="form-input" placeholder="test@example.com">
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-secondary" id="cancelTestEmail">Abbrechen</button>
+                    <button class="btn-primary" id="confirmTestEmail">Senden</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HTML Code Modal -->
+    <div id="htmlCodeModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>HTML-Code</h2>
+                <button class="modal-close" id="closeHtmlCode">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="html-code-header">
+                    <p class="form-hint">Bearbeiten oder kopieren Sie den HTML-Code:</p>
+                    <div class="modal-actions-small">
+                        <button class="btn-secondary" id="copyHtmlBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Kopieren
+                        </button>
+                    </div>
+                </div>
+                <textarea class="html-code-content" id="htmlCodeEdit" spellcheck="false"></textarea>
+                <div class="modal-actions">
+                    <button class="btn-secondary" id="cancelHtmlCode">Abbrechen</button>
+                    <button class="btn-primary" id="saveHtmlBtn">Speichern & Schließen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTACTS TAB -->
+    <div class="tab-content" id="contacts-tab">
+        <section class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-users"></i> Kontaktverwaltung</h2>
+                <button class="btn-primary" id="addContactBtn">
+                    <i class="fas fa-plus"></i> Neuer Kontakt
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="toolbar">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="contactSearch" placeholder="Kontakte durchsuchen...">
+                    </div>
+                    <select id="contactListFilter" class="form-select">
+                        <option value="all">Alle Listen</option>
+                    </select>
+                    <button class="btn-secondary" id="refreshContactsBtn">
+                        <i class="fas fa-sync-alt"></i> Aktualisieren
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table class="contacts-table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Vorname</th>
+                                <th>Nachname</th>
+                                <th>Listen</th>
+                                <th>Erstellt</th>
+                                <th class="actions-col">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactsTableBody">
+                            <tr>
+                                <td colspan="6" class="loading-row">
+                                    <i class="fas fa-spinner fa-spin"></i> Lade Kontakte...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-footer">
+                    <span id="contactCount">0 Kontakte</span>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- LISTS TAB -->
+    <div class="tab-content" id="lists-tab">
+        <section class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-list"></i> Listen-Verwaltung</h2>
+            </div>
+            <div class="card-body">
+                <div class="lists-grid" id="listsGrid">
+                    <div class="list-card loading">
+                        <i class="fas fa-spinner fa-spin"></i> Lade Listen...
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    </main>
+    </div>
+
+    <!-- Contact Modal -->
+    <div id="contactModal" class="modal hidden">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="contactModalTitle"><i class="fas fa-user-edit"></i> Kontakt bearbeiten</h2>
+                <button class="modal-close" id="closeContactModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="contactForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Email *</label>
+                            <input type="email" id="contactEmail" class="form-input" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Vorname</label>
+                            <input type="text" id="contactFirstName" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label>Nachname</label>
+                            <input type="text" id="contactLastName" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Listen</label>
+                        <div id="contactListsCheckboxes" class="checkbox-group"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-danger" id="deleteContactBtn" style="display:none;">
+                    <i class="fas fa-trash"></i> Löschen
+                </button>
+                <div style="flex:1"></div>
+                <button class="btn-secondary" id="cancelContactBtn">Abbrechen</button>
+                <button class="btn-primary" id="saveContactBtn">Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSV Email Fixer Modal -->
+    <div id="csvFixerModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 900px; width: 95%;">
+            <div class="modal-header">
+                <h2>🔧 E-Mail Fixer</h2>
+                <button class="modal-close" onclick="hideModal('csvFixerModal')">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <span id="fixerSummary" style="color: #888; font-size: 0.9em;"></span>
+                    </div>
+                    <button class="btn-secondary" onclick="acceptAllFixes()"
+                        style="font-size: 0.85em; padding: 6px 14px;">
+                        ✅ Alle Vorschläge übernehmen
+                    </button>
+                    <button class="btn-secondary" onclick="removeAllInvalid()"
+                        style="font-size: 0.85em; padding: 6px 14px; border-color: var(--error); color: var(--error);">
+                        🗑️ Alle ungültigen entfernen
+                    </button>
+                </div>
+                <table class="contacts-table" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">Zeile</th>
+                            <th>Original</th>
+                            <th>Problem</th>
+                            <th>Vorschlag</th>
+                            <th style="width: 120px;">Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fixerTableBody"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="hideModal('csvFixerModal')">Schließen</button>
+                <button class="btn-primary" onclick="downloadCleanedCSV()" style="background: #6366f1;">
+                    📥 Bereinigte CSV herunterladen
+                </button>
+                <button class="btn-primary" id="applyFixesBtn" onclick="applySelectedFixes()">
+                    ✅ Korrekturen anwenden & Empfänger aktualisieren
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quill Editor -->
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,16 @@
+node_modules
+logs
+*.log
+.git
+.github
+*.eml
+*.csv
+.dockerignore
+.gitignore
+README.md
+SCHNELLSTART.md
+NEUE_FEATURES.md
+ZEITERFASSUNG.md
+deploy.sh
+docker-compose.yml
+smtp-config-template.js

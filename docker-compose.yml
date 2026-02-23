@@ -1,0 +1,14 @@
+services:
+  smtpsend:
+    build: .
+    container_name: smtpsend-app
+    restart: unless-stopped
+    ports:
+      - "8089:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      - NODE_ENV=production
+      - PORT=3000

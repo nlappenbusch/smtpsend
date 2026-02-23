@@ -1,0 +1,27 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Ryder Cup Inspired Logo -->
+  <defs>
+    <linearGradient id="orangeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E74C3C;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E67E22;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main Circle -->
+  <circle cx="100" cy="100" r="95" fill="url(#orangeGradient)"/>
+  
+  <!-- Inner Circle -->
+  <circle cx="100" cy="100" r="85" fill="none" stroke="white" stroke-width="3"/>
+  
+  <!-- Stylized Mail Icon -->
+  <g transform="translate(100, 100)">
+    <!-- Envelope -->
+    <rect x="-40" y="-25" width="80" height="50" rx="5" fill="white" opacity="0.9"/>
+    <!-- Flap -->
+    <path d="M -40,-25 L 0,5 L 40,-25" fill="none" stroke="#E74C3C" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M -40,-25 L 0,5 L 40,-25 Z" fill="white" opacity="0.7"/>
+  </g>
+  
+  <!-- Decorative Lines -->
+  <circle cx="100" cy="100" r="70" fill="none" stroke="white" stroke-width="2" opacity="0.5"/>
+</svg>
