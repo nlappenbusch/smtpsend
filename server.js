@@ -253,14 +253,19 @@ function requireAuth(req, res, next) {
         return next();
     }
 
-    // Check if it's an API request
-    if (req.path.startsWith('/api/')) {
-        return res.status(401).json({ success: false, error: 'Unauthorized' });
+    // Check if it's an API request (including those that don't start with /api/ but are fetched)
+    const isApiRequest = req.path.startsWith('/api/') || req.xhr || req.headers.accept?.indexOf('json') > -1;
+
+    if (isApiRequest) {
+        return res.status(401).json({ success: false, error: 'Unauthorized/Session Expired' });
     }
 
     // Otherwise redirect to login
     res.redirect('/login');
 }
+
+// Favicon fix
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // Public Routes
 app.get('/login', (req, res) => {

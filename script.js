@@ -946,6 +946,13 @@ async function startMassSend() {
 async function checkJobStatus() {
     try {
         const response = await fetch('/api/send-status');
+
+        if (response.status === 401) {
+            console.warn('Session expired, redirecting to login...');
+            window.location.href = '/login';
+            return;
+        }
+
         const data = await response.json();
 
         if (data.success && data.job) {
@@ -1290,6 +1297,12 @@ async function loadBrevoLists() {
         addLog('info', '📋 Lade Brevo-Listen...');
 
         const response = await fetch('/api/brevo/lists');
+
+        if (response.status === 401) {
+            window.location.href = '/login';
+            return;
+        }
+
         const data = await response.json();
 
         if (!data.success) {
