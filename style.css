@@ -93,6 +93,7 @@ body {
         opacity: 0;
         transform: scale(0.8) rotate(-10deg);
     }
+
     to {
         opacity: 1;
         transform: scale(1) rotate(0deg);
@@ -110,6 +111,18 @@ body {
     font-size: 1.1rem;
     opacity: 0.9;
     font-weight: 300;
+}
+
+.version-tag {
+    font-size: 0.75rem;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 8px;
+    font-weight: 600;
+    vertical-align: middle;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
 }
 
 /* Cards */
@@ -803,6 +816,7 @@ button:disabled .spinner {
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
