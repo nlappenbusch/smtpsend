@@ -157,6 +157,9 @@ const SMTP_CONFIG = {
     auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || ''
+    },
+    tls: {
+        rejectUnauthorized: false // Fix for "certificate has expired" error
     }
 };
 
@@ -253,8 +256,9 @@ function requireAuth(req, res, next) {
         return next();
     }
 
-    // Check if it's an API request (including those that don't start with /api/ but are fetched)
-    const isApiRequest = req.path.startsWith('/api/') || req.xhr || req.headers.accept?.indexOf('json') > -1;
+    // Use originalUrl to check if it's an API request, as req.path 
+    // might be relative to the mount point (e.g. "/" instead of "/api/...")
+    const isApiRequest = req.originalUrl.startsWith('/api/') || req.xhr || req.headers.accept?.indexOf('json') > -1;
 
     if (isApiRequest) {
         return res.status(401).json({ success: false, error: 'Unauthorized/Session Expired' });
