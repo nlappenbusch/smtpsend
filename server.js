@@ -812,11 +812,12 @@ app.listen(PORT, () => {
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   📧  Email Massenversand Server                         ║
+║   Version: 1.2.0                                          ║
 ║                                                           ║
 ║   Server läuft auf: http://localhost:${PORT}                ║
 ║                                                           ║
-║   SMTP Server: smtp-relay.brevo.com:587                  ║
-║   Login: 76e8a1001@smtp-brevo.com                        ║
+║   SMTP Server: ${SMTP_CONFIG.host}:${SMTP_CONFIG.port}      ║
+║   Login: ${SMTP_CONFIG.auth.user || 'Kein User gesetzt'}     ║
 ║                                                           ║
 ║   Öffnen Sie http://localhost:${PORT} im Browser          ║
 ║                                                           ║
