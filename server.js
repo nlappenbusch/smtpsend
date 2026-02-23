@@ -144,7 +144,7 @@ function cleanHtmlForQuill(html) {
 
 // SMTP Configuration (from environment variables)
 const SMTP_CONFIG = {
-    host: process.env.SMTP_HOST || '162.55.89.34',
+    host: process.env.SMTP_HOST || 'mail.pc4play.de',
     port: parseInt(process.env.SMTP_PORT) || 587,
     secure: false,
     auth: {
