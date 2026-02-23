@@ -7,6 +7,7 @@ let attachments = []; // Store attachments
 let allContacts = [];
 let allBrevoLists = [];
 let currentTab = 'emails';
+let jobStatusInterval = null;
 
 // Initialize Quill Editor
 document.addEventListener('DOMContentLoaded', () => {
@@ -14,6 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
     initializeCRM();
     loadExampleEmlList(); // Load available EML examples
+
+    // Check if a job is already running on the server
+    checkJobStatus();
+    // Start polling every 5 seconds
+    jobStatusInterval = setInterval(checkJobStatus, 5000);
 });
 
 function initializeEditor() {
@@ -899,80 +905,116 @@ async function startMassSend() {
         return;
     }
 
-    isSending = true;
-    shouldStop = false;
-
-    document.getElementById('sendBtn').classList.add('hidden');
-    document.getElementById('stopBtn').classList.remove('hidden');
-    document.getElementById('progressSection').classList.remove('hidden');
-    document.getElementById('logSection').classList.remove('hidden');
-
-    let successCount = 0;
-    let errorCount = 0;
-    let processedCount = 0;
-    const startTime = Date.now();
-
-    addLog('info', `🚀 Starte Versand: ${totalRecipients} Empfänger | ${parallelSends} parallel | ${delay / 1000}s Delay | Batch ${batchSize} | Pause ${batchPause / 1000}s`);
-
-    // Verarbeite E-Mails in Batches
-    for (let batchStart = 0; batchStart < totalRecipients; batchStart += batchSize) {
-        if (shouldStop) {
-            addLog('info', '⛔ Versand wurde vom Benutzer gestoppt');
-            break;
-        }
-
-        const batchEnd = Math.min(batchStart + batchSize, totalRecipients);
-        const currentBatch = recipients.slice(batchStart, batchEnd);
-        const batchNumber = Math.floor(batchStart / batchSize) + 1;
-        const totalBatches = Math.ceil(totalRecipients / batchSize);
-
-        addLog('info', `📦 Batch ${batchNumber}/${totalBatches}: ${currentBatch.length} E-Mails...`);
-
-        // Sende E-Mails innerhalb des Batches (in parallelen Gruppen)
-        for (let i = 0; i < currentBatch.length; i += parallelSends) {
-            if (shouldStop) break;
-
-            const parallelGroup = currentBatch.slice(i, Math.min(i + parallelSends, currentBatch.length));
-
-            // Sende alle E-Mails dieser Gruppe gleichzeitig
-            const promises = parallelGroup.map(async (recipient) => {
-                try {
-                    await sendEmail(recipient.email, subject, htmlContent, attachments);
-                    successCount++;
-                    addLog('success', `✓ Email an ${recipient.email} gesendet`);
-                    return { success: true };
-                } catch (error) {
-                    errorCount++;
-                    addLog('error', `✗ Fehler bei ${recipient.email}: ${error.message}`);
-                    return { success: false };
+    try {
+        const response = await fetch('/api/start-send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                recipients,
+                subject,
+                html: htmlContent,
+                attachments,
+                settings: {
+                    delay,
+                    parallel: parallelSends,
+                    batchSize,
+                    batchPause
                 }
-            });
+            })
+        });
 
-            await Promise.all(promises);
-            processedCount += parallelGroup.length;
-            updateProgress(processedCount, totalRecipients, successCount, errorCount);
+        const data = await response.json();
+        if (data.success) {
+            isSending = true;
+            shouldStop = false;
 
-            // Verzögerung zwischen jeder Gruppe – WIRD VOLL RESPEKTIERT
-            if (delay > 0 && (i + parallelSends) < currentBatch.length && !shouldStop) {
-                await sleep(delay);
-            }
+            document.getElementById('sendBtn').classList.add('hidden');
+            document.getElementById('stopBtn').classList.remove('hidden');
+            document.getElementById('progressSection').classList.remove('hidden');
+            document.getElementById('logSection').classList.remove('hidden');
+
+            addLog('info', '🚀 Versand-Job an Server übertragen...');
+            checkJobStatus(); // Immediate poll
+        } else {
+            throw new Error(data.error || 'Fehler beim Starten des Jobs');
         }
+    } catch (error) {
+        alert('Fehler beim Starten des Versands: ' + error.message);
+    }
+}
 
-        // Pause zwischen Batches
-        if (batchEnd < totalRecipients && !shouldStop) {
-            const elapsed = formatDuration((Date.now() - startTime) / 1000);
-            addLog('info', `✅ Batch ${batchNumber} abgeschlossen (${elapsed} vergangen). Pause ${batchPause / 1000}s...`);
-            await sleep(batchPause);
+async function checkJobStatus() {
+    try {
+        const response = await fetch('/api/send-status');
+        const data = await response.json();
+
+        if (data.success && data.job) {
+            const job = data.job;
+            updateUIFromJob(job);
         }
+    } catch (error) {
+        console.error('Error polling job status:', error);
+    }
+}
+
+function updateUIFromJob(job) {
+    if (!job.running && !isSending) {
+        // No job running and we weren't sending, just hide stop button if visible
+        if (!document.getElementById('sendBtn').classList.contains('hidden')) {
+            document.getElementById('stopBtn').classList.add('hidden');
+        }
+        return;
     }
 
-    const totalTime = formatDuration((Date.now() - startTime) / 1000);
-    isSending = false;
-    document.getElementById('sendBtn').classList.remove('hidden');
-    document.getElementById('stopBtn').classList.add('hidden');
-    document.getElementById('stopBtn').disabled = false;
+    isSending = job.running;
 
-    addLog('info', `🏁 Versand abgeschlossen in ${totalTime}. Erfolgreich: ${successCount}, Fehlgeschlagen: ${errorCount}`);
+    // Update visibility
+    if (isSending) {
+        document.getElementById('sendBtn').classList.add('hidden');
+        document.getElementById('stopBtn').classList.remove('hidden');
+        document.getElementById('stopBtn').disabled = job.stopped;
+        document.getElementById('progressSection').classList.remove('hidden');
+        document.getElementById('logSection').classList.remove('hidden');
+    } else {
+        document.getElementById('sendBtn').classList.remove('hidden');
+        document.getElementById('stopBtn').classList.add('hidden');
+        document.getElementById('stopBtn').disabled = false;
+    }
+
+    // Update Progress
+    updateProgress(job.processed, job.total, job.success, job.error, job.skipped);
+
+    // Update Logs (only new ones)
+    const logContent = document.getElementById('logContent');
+    if (job.logs && job.logs.length > 0) {
+        // Simple strategy: Clear and re-render if count changed significantly or just prepend new ones
+        // For now, let's keep it simple and just show the last 100 logs from backend
+        logContent.innerHTML = job.logs.map(log => `
+            <div class="log-entry ${log.type}">
+                <span class="log-time">${log.time}</span>
+                <span class="log-message">${log.message}</span>
+            </div>
+        `).join('');
+    }
+}
+
+async function stopSending() {
+    if (!confirm('Möchten Sie den Versand wirklich stoppen?')) return;
+
+    try {
+        document.getElementById('stopBtn').disabled = true;
+        const response = await fetch('/api/stop-send', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            addLog('info', '⌛ Stopp-Anfrage gesendet...');
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (error) {
+        alert('Fehler beim Stoppen: ' + error.message);
+        document.getElementById('stopBtn').disabled = false;
+    }
 }
 
 // Duration calculation
@@ -1018,12 +1060,6 @@ function updateDurationEstimate() {
     el.innerHTML = `<strong>${formatDuration(duration)}</strong> für ${totalMails.toLocaleString('de-DE')} Empfänger (~${mailsPerMin} Mails/Min)`;
 }
 
-function stopSending() {
-    shouldStop = true;
-    document.getElementById('stopBtn').disabled = true;
-    addLog('info', 'Stoppe Versand nach aktueller Email...');
-}
-
 async function sendEmail(to, subject, htmlContent, emailAttachments = []) {
     // This is a client-side implementation
     // In production, you would need a backend server to actually send emails
@@ -1050,14 +1086,25 @@ async function sendEmail(to, subject, htmlContent, emailAttachments = []) {
     return response.json();
 }
 
-function updateProgress(current, total, success, errors) {
-    const percentage = (current / total) * 100;
+function updateProgress(current, total, success, errors, skipped = 0) {
+    const percentage = total > 0 ? (current / total) * 100 : 0;
 
     document.getElementById('progressFill').style.width = `${percentage}%`;
     document.getElementById('progressText').textContent = `${current} / ${total}`;
     document.getElementById('successCount').textContent = success;
     document.getElementById('errorCount').textContent = errors;
-    document.getElementById('remainingCount').textContent = total - current;
+    document.getElementById('remainingCount').textContent = Math.max(0, total - current);
+
+    // Show/hide skipped stat
+    const skippedStat = document.getElementById('skippedStat');
+    if (skippedStat) {
+        if (skipped > 0) {
+            skippedStat.style.display = 'block';
+            document.getElementById('skippedCount').textContent = skipped;
+        } else {
+            skippedStat.style.display = 'none';
+        }
+    }
 }
 
 function addLog(type, message) {

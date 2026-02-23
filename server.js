@@ -164,6 +164,72 @@ const SMTP_CONFIG = {
 const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
 const BREVO_API_URL = 'https://api.brevo.com/v3';
 
+// Mass Send Job State
+let activeJob = {
+    running: false,
+    stopped: false,
+    total: 0,
+    processed: 0,
+    success: 0,
+    error: 0,
+    recipients: [],
+    subject: '',
+    html: '',
+    attachments: [],
+    logs: [],
+    startTime: null,
+    settings: {
+        delay: 2000,
+        parallel: 1,
+        batchSize: 50,
+        batchPause: 15000
+    }
+};
+
+function addJobLog(type, message) {
+    const time = new Date().toLocaleTimeString('de-DE');
+    activeJob.logs.unshift({ time, type, message });
+    if (activeJob.logs.length > 100) activeJob.logs.pop();
+    console.log(`[JOB ${type.toUpperCase()}] ${message}`);
+}
+
+function recordSentEmail(email) {
+    try {
+        const historicalFile = path.join(__dirname, 'sent_history.csv');
+        if (!fs.existsSync(historicalFile)) {
+            fs.writeFileSync(historicalFile, 'Email;Vorname;Nachname\n', 'utf8');
+        }
+        // Append email with empty placeholders for first/last name
+        const line = `${email};;\n`;
+        fs.appendFileSync(historicalFile, line, 'utf8');
+    } catch (error) {
+        console.error('✗ Error recording sent email in history:', error.message);
+    }
+}
+
+function loadSentHistory() {
+    try {
+        const historicalFile = path.join(__dirname, 'sent_history.csv');
+        if (!fs.existsSync(historicalFile)) return new Set();
+
+        const content = fs.readFileSync(historicalFile, 'utf8');
+        const lines = content.split(/\r?\n/);
+        const emails = new Set();
+
+        // Skip header
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            const email = line.split(';')[0].toLowerCase().trim();
+            if (email) emails.add(email);
+        }
+        return emails;
+    } catch (error) {
+        console.error('✗ Error loading sent history:', error.message);
+        return new Set();
+    }
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -628,7 +694,155 @@ app.delete('/api/brevo/contacts/:email/lists/:listId', async (req, res) => {
     }
 });
 
-// Email sending endpoint
+// Email sending job endpoints
+app.post('/api/start-send', (req, res) => {
+    if (activeJob.running) {
+        return res.status(400).json({ success: false, error: 'A job is already running' });
+    }
+
+    const { recipients, subject, html, attachments, settings } = req.body;
+
+    if (!recipients || !recipients.length || !subject || !html) {
+        return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    // --- DELTA FILTERING ---
+    const sentHistory = loadSentHistory();
+    const filteredRecipients = recipients.filter(r => !sentHistory.has(r.email.toLowerCase().trim()));
+    const skippedCount = recipients.length - filteredRecipients.length;
+
+    // Initialize job
+    activeJob = {
+        running: true,
+        stopped: false,
+        total: filteredRecipients.length,
+        processed: 0,
+        success: 0,
+        error: 0,
+        recipients: [...filteredRecipients],
+        subject,
+        html,
+        attachments: attachments || [],
+        logs: [],
+        startTime: Date.now(),
+        settings: {
+            delay: parseInt(settings.delay) || 2000,
+            parallel: parseInt(settings.parallel) || 1,
+            batchSize: parseInt(settings.batchSize) || 50,
+            batchPause: parseInt(settings.batchPause) || 15000
+        },
+        skipped: skippedCount
+    };
+
+    addJobLog('info', `🚀 Backend-Versand gestartet: ${activeJob.total} Empfänger`);
+    if (skippedCount > 0) {
+        addJobLog('info', `⏩ ${skippedCount} Empfänger übersprungen (bereits in Historie)`);
+    }
+
+    // Start background process
+    runBackendSendJob();
+
+    res.json({ success: true, message: 'Job started' });
+});
+
+app.get('/api/send-status', (req, res) => {
+    res.json({
+        success: true,
+        job: {
+            running: activeJob.running,
+            stopped: activeJob.stopped,
+            total: activeJob.total,
+            processed: activeJob.processed,
+            success: activeJob.success,
+            error: activeJob.error,
+            logs: activeJob.logs,
+            startTime: activeJob.startTime,
+            skipped: activeJob.skipped
+        }
+    });
+});
+
+app.post('/api/stop-send', (req, res) => {
+    if (activeJob.running) {
+        activeJob.stopped = true;
+        addJobLog('info', '⛔ Versand-Stopp angefordert...');
+        res.json({ success: true, message: 'Stopping job...' });
+    } else {
+        res.status(400).json({ success: false, error: 'No active job to stop' });
+    }
+});
+
+async function runBackendSendJob() {
+    const { recipients, subject, html, attachments, settings } = activeJob;
+
+    // Clean HTML once for the whole job
+    let cleanedHtml = html.replace(/<p>/gi, '<p style="margin:0;padding:0;line-height:1.4">');
+    cleanedHtml = cleanedHtml.replace(/<p\s+style="[^"]*"/gi, '<p style="margin:0;padding:0;line-height:1.4"');
+
+    const total = recipients.length;
+
+    for (let batchStart = 0; batchStart < total; batchStart += settings.batchSize) {
+        if (activeJob.stopped) break;
+
+        const batchEnd = Math.min(batchStart + settings.batchSize, total);
+        const currentBatch = recipients.slice(batchStart, batchEnd);
+        const batchNum = Math.floor(batchStart / settings.batchSize) + 1;
+        const totalBatches = Math.ceil(total / settings.batchSize);
+
+        addJobLog('info', `📦 Batch ${batchNum}/${totalBatches} wird verarbeitet...`);
+
+        for (let i = 0; i < currentBatch.length; i += settings.parallel) {
+            if (activeJob.stopped) break;
+
+            const group = currentBatch.slice(i, Math.min(i + settings.parallel, currentBatch.length));
+
+            await Promise.all(group.map(async (recipient) => {
+                try {
+                    // Re-use existing extractImagesFromHtml logic for each email
+                    const { html: finalHtml, attachments: imageAttachments } = extractImagesFromHtml(cleanedHtml);
+
+                    const transporter = nodemailer.createTransport({
+                        ...SMTP_CONFIG,
+                        connectionTimeout: 10000,
+                        greetingTimeout: 10000
+                    });
+
+                    await transporter.sendMail({
+                        from: `"Faltin Travel" <${SMTP_CONFIG.auth.user}>`,
+                        to: recipient.email,
+                        subject: subject,
+                        html: finalHtml,
+                        attachments: [...imageAttachments, ...attachments]
+                    });
+
+                    activeJob.success++;
+                    addJobLog('success', `✓ Email an ${recipient.email} gesendet`);
+                    recordSentEmail(recipient.email);
+                } catch (error) {
+                    activeJob.error++;
+                    addJobLog('error', `✗ Fehler bei ${recipient.email}: ${error.message}`);
+                } finally {
+                    activeJob.processed++;
+                }
+            }));
+
+            if (settings.delay > 0 && (i + settings.parallel) < currentBatch.length && !activeJob.stopped) {
+                await new Promise(resolve => setTimeout(resolve, settings.delay));
+            }
+        }
+
+        if (batchEnd < total && !activeJob.stopped) {
+            addJobLog('info', `✅ Batch ${batchNum} abgeschlossen. Pause ${settings.batchPause / 1000}s...`);
+            await new Promise(resolve => setTimeout(resolve, settings.batchPause));
+        }
+    }
+
+    activeJob.running = false;
+    const status = activeJob.stopped ? 'gestoppt' : 'beendet';
+    addJobLog('info', `🏁 Versand ${status}. Gesamt: ${activeJob.success} Erfolg, ${activeJob.error} Fehler.`);
+}
+
+// Single Email sending endpoint (for tests)
 app.post('/api/send-email', async (req, res) => {
     let { to, subject, html, attachments: userAttachments = [] } = req.body;
 
@@ -639,90 +853,31 @@ app.post('/api/send-email', async (req, res) => {
         });
     }
 
-    // Clean HTML before sending - nur minimales Cleanup
-    console.log(`📧 Original HTML length: ${html.length}`);
-
-    // ===== V14: <p> Tags bleiben - User will Absätze im Editor behalten! =====
-    // Setze nur aggressive inline styles auf <p> Tags
-    html = html.replace(/<p>/gi, '<p style="margin:0;padding:0;line-height:1.4">');
-    html = html.replace(/<p\s+style="[^"]*"/gi, '<p style="margin:0;padding:0;line-height:1.4"');
-
-    console.log(`✅ Cleaned HTML length: ${html.length}`);
-
-    // Log HTML statistics
-    const imageCount = (html.match(/<img/gi) || []).length;
-    const base64ImageCount = (html.match(/data:image/gi) || []).length;
-    console.log(`Sending to ${to}: HTML=${html.length} chars, ${imageCount} images, ${base64ImageCount} base64`);
-
     try {
-        // Extract images and convert to CID attachments
-        const { html: modifiedHtml, attachments } = extractImagesFromHtml(html);
-        console.log(`  → Converted ${attachments.length} images to CID attachments`);
-
-        // Create transporter with SMTP config
-        console.log(`📡 Connecting to SMTP: ${SMTP_CONFIG.host}:${SMTP_CONFIG.port} (User: ${SMTP_CONFIG.auth.user})`);
+        const { html: finalHtml, attachments: imageAttachments } = extractImagesFromHtml(html);
 
         const transporter = nodemailer.createTransport({
-            host: SMTP_CONFIG.host,
-            port: SMTP_CONFIG.port,
-            secure: SMTP_CONFIG.secure,
-            auth: {
-                user: SMTP_CONFIG.auth.user,
-                pass: SMTP_CONFIG.auth.pass
-            },
-            tls: {
-                rejectUnauthorized: false
-            },
-            // timeouts to avoid indefinite hangs
-            connectionTimeout: 10000, // 10s
-            greetingTimeout: 10000,    // 10s
-            socketTimeout: 15000       // 15s
+            ...SMTP_CONFIG,
+            connectionTimeout: 10000,
+            greetingTimeout: 10000
         });
 
-        // Verify connection
-        console.log(`🔍 Verifying SMTP connection...`);
-        await transporter.verify();
-        console.log(`✅ SMTP connection verified!`);
-
-        // Combine CID attachments from images with user attachments
-        const allAttachments = [
-            ...attachments, // CID image attachments
-            ...userAttachments.map(att => ({
-                filename: att.filename,
-                content: att.content,
-                encoding: 'base64',
-                contentType: att.contentType
-            }))
-        ];
-
-        console.log(`📎 Total attachments: ${allAttachments.length} (${attachments.length} images, ${userAttachments.length} files)`);
-
-        // Send email with attachments
         const info = await transporter.sendMail({
-            from: '"Faltin Travel" <faltin@faltintravel.com>',
-            replyTo: '"Kontakt Faltin Travel" <kontakt@faltintravel.com>',
-            to: to,
-            subject: subject,
-            html: modifiedHtml,
-            attachments: allAttachments
+            from: `"Faltin Travel" <${SMTP_CONFIG.auth.user}>`,
+            to,
+            subject,
+            html: finalHtml,
+            attachments: [...imageAttachments, ...userAttachments]
         });
 
-        console.log(`✓ Email sent to ${to}: ${info.messageId}`);
-
-        res.json({
-            success: true,
-            messageId: info.messageId,
-            recipient: to
-        });
-
+        recordSentEmail(to);
+        res.json({ success: true, messageId: info.messageId });
     } catch (error) {
-        console.error(`✗ Error sending email to ${to}:`, error.message);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        console.error('✗ Error sending single email:', error.message);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
+
 
 // EML examples endpoint
 app.get('/api/example-emls', (req, res) => {
@@ -961,7 +1116,7 @@ app.listen(PORT, () => {
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   📧  Email Massenversand Server                         ║
-║   Version: 1.2.3                                          ║
+║   Version: 1.3.0                                          ║
 ║                                                           ║
 ║   Server läuft auf: http://localhost:${PORT}                ║
 ║                                                           ║
